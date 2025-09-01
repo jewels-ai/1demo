@@ -111,7 +111,7 @@ function insertJewelryOptions(type, containerId, startIndex, endIndex) {
     img.src = `${type}/${filename}`;
     img.alt = `${type.replace('_', ' ')} ${i}`;
     btn.appendChild(img);
-    btn.onclick = () => changeJewelry(type, `jewels/${type}/${filename}`);
+    btn.onclick = () => changeJewelry(type, `${type}/${filename}`);
     container.appendChild(btn);
   }
 }
@@ -140,28 +140,23 @@ hands.setOptions({
 });
 
 hands.onResults((results) => {
-  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-    const smoothingFactor = 0.5;
-    if (!smoothedHandLandmarks) {
-      smoothedHandLandmarks = results.multiHandLandmarks;
-    } else {
-      smoothedHandLandmarks = results.multiHandLandmarks.map((newHand, handIndex) => {
-        if (smoothedHandLandmarks[handIndex]) {
-          return newHand.map((newLandmark, landmarkIndex) => {
-            const prevLandmark = smoothedHandLandmarks[handIndex][landmarkIndex];
-            return {
-              x: prevLandmark.x * (1 - smoothingFactor) + newLandmark.x * smoothingFactor,
-              y: prevLandmark.y * (1 - smoothingFactor) + newLandmark.y * smoothingFactor,
-              z: prevLandmark.z * (1 - smoothingFactor) + newLandmark.z * smoothingFactor,
-            };
-          });
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        if (!smoothedHandLandmarks) {
+            smoothedHandLandmarks = results.multiHandLandmarks;
+        } else {
+            const smoothingFactor = 0.5; // Increased smoothing to reduce flickering
+            smoothedHandLandmarks = results.multiHandLandmarks.map((newLandmarks, i) => {
+                if (!smoothedHandLandmarks[i]) return newLandmarks;
+                return newLandmarks.map((landmark, j) => ({
+                    x: smoothedHandLandmarks[i][j].x * (1 - smoothingFactor) + landmark.x * smoothingFactor,
+                    y: smoothedHandLandmarks[i][j].y * (1 - smoothingFactor) + landmark.y * smoothingFactor,
+                    z: smoothedHandLandmarks[i][j].z * (1 - smoothingFactor) + landmark.z * smoothingFactor,
+                }));
+            });
         }
-        return newHand;
-      });
+    } else {
+        smoothedHandLandmarks = null;
     }
-  } else {
-    smoothedHandLandmarks = null;
-  }
 });
 
 faceMesh.onResults((results) => {
@@ -171,7 +166,7 @@ faceMesh.onResults((results) => {
     if (!smoothedFaceLandmarks) {
       smoothedFaceLandmarks = newLandmarks;
     } else {
-      const smoothingFactor = 0.2;
+      const smoothingFactor = 0.5; // Increased smoothing to reduce flickering
       smoothedFaceLandmarks = smoothedFaceLandmarks.map((prev, i) => ({
         x: prev.x * (1 - smoothingFactor) + newLandmarks[i].x * smoothingFactor,
         y: prev.y * (1 - smoothingFactor) + newLandmarks[i].y * smoothingFactor,
@@ -218,8 +213,6 @@ function drawJewelry(faceLandmarks, handLandmarks, ctx) {
   const necklaceScale = 0.18;
   const braceletScale = 0.15;
   const ringScale = 0.05;
-  // Adjust this value to change the default angle of the bracelet.
-  // The value is in radians. For example, Math.PI / 2 is 90 degrees.
   const angleOffset = Math.PI / 2; 
 
   if (faceLandmarks) {
@@ -256,9 +249,9 @@ function drawJewelry(faceLandmarks, handLandmarks, ctx) {
 
   if (handLandmarks) {
     handLandmarks.forEach(hand => {
-      // Use wrist landmark and middle finger knuckle to calculate a stable angle
       const wristLandmark = hand[0];
       const middleFingerKnuckleLandmark = hand[9];
+      const ringFingerTip = hand[16]; // Adjusted to ring finger tip for better ring placement
 
       const wristPos = {
         x: wristLandmark.x * canvasElement.width,
@@ -270,13 +263,11 @@ function drawJewelry(faceLandmarks, handLandmarks, ctx) {
         y: middleFingerKnuckleLandmark.y * canvasElement.height,
       };
 
-      // Corrected to use the ring finger base landmark (index 13) for stability
       const ringFingerPos = {
-        x: hand[13].x * canvasElement.width,
-        y: hand[13].y * canvasElement.height,
+        x: ringFingerTip.x * canvasElement.width,
+        y: ringFingerTip.y * canvasElement.height,
       };
 
-      // Calculate the angle of the hand in radians
       const angle = Math.atan2(middleFingerKnucklePos.y - wristPos.y, middleFingerKnucklePos.x - wristPos.x);
 
       if (braceletImg) {
@@ -285,7 +276,7 @@ function drawJewelry(faceLandmarks, handLandmarks, ctx) {
         
         ctx.save();
         ctx.translate(wristPos.x, wristPos.y);
-        ctx.rotate(angle + angleOffset); // Apply the rotation with the offset
+        ctx.rotate(angle + angleOffset);
         ctx.drawImage(braceletImg, -width / 2, -height / 2, width, height);
         ctx.restore();
       }
@@ -293,14 +284,18 @@ function drawJewelry(faceLandmarks, handLandmarks, ctx) {
       if (ringImg) {
         const width = ringImg.width * ringScale;
         const height = ringImg.height * ringScale;
-        // Position the ring at the base of the ring finger
-        ctx.drawImage(ringImg, ringFingerPos.x - width / 2, ringFingerPos.y - height / 2, width, height);
+        // Adjusted ring position to ring finger tip (landmark 16) for better fit
+        ctx.save();
+        ctx.translate(ringFingerPos.x, ringFingerPos.y);
+        ctx.rotate(angle);
+        ctx.drawImage(ringImg, -width / 2, -height / 2, width, height);
+        ctx.restore();
       }
     });
   }
 }
 
-// Snapshot & Modal Functions (no changes needed)
+// Snapshot & Modal Functions - UPDATED
 function takeSnapshot() {
   if (!smoothedFaceLandmarks && !smoothedHandLandmarks) {
     alert("Face or hand not detected. Please try again.");
@@ -322,29 +317,25 @@ function saveSnapshot() {
   const link = document.createElement('a');
   link.href = lastSnapshotDataURL;
   link.download = `jewelry-tryon-${Date.now()}.png`;
-  document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
 }
 
-// Fixed Share Function with async/await
-async function shareSnapshot() {
+function shareSnapshot() {
   if (navigator.share) {
-    try {
-      const response = await fetch(lastSnapshotDataURL);
-      const blob = await response.blob();
-      const file = new File([blob], 'jewelry-tryon.png', { type: 'image/png' });
-
-      await navigator.share({
-        title: 'Jewelry Try-On',
-        text: 'Check out my look!',
-        files: [file],
+    fetch(lastSnapshotDataURL)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], 'jewelry-tryon.png', { type: 'image/png' });
+        navigator.share({
+          title: 'Jewelry Try-On',
+          text: 'Check out my look!',
+          files: [file]
+        }).catch(err => console.error('Error sharing:', err));
+      })
+      .catch(err => {
+        alert('Sharing failed. Please try again.');
+        console.error('Fetch error:', err);
       });
-      console.log('Shared successfully');
-    } catch (error) {
-      console.error('Error sharing:', error);
-      alert('Error sharing. Please try again.');
-    }
   } else {
     alert('Sharing not supported on this browser.');
   }
@@ -361,3 +352,8 @@ function toggleInfoModal() {
     infoModal.showModal();
   }
 }
+
+// Add event listeners for snapshot buttons
+document.getElementById('save-btn').addEventListener('click', saveSnapshot);
+document.getElementById('share-btn').addEventListener('click', shareSnapshot);
+document.getElementById('close-btn').addEventListener('click', closeSnapshotModal);
