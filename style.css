@@ -54,78 +54,110 @@ video, canvas {
 /* Main Jewelry Category Buttons (EARRINGS, CHAINS, etc.) */
 #jewelry-mode {
   position: fixed;
-  bottom: 20px;
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10;
   display: flex;
-  gap: 10px;
-}
-
-.button-group button {
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
+  flex-direction: row;
+  gap: 12px;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.6);
   padding: 10px 15px;
-  color: #fff;
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
-  text-transform: uppercase;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+#jewelry-mode button {
+  background-color: #5E0F8B;
+  color: #ffffff;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: bold;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
-.button-group button:hover {
-  background: rgba(255, 255, 255, 0.4);
+#jewelry-mode button:hover {
+  background-color: #3b0764;
 }
 
-/* Sub-category Buttons (Gold, Diamond, etc.) */
+/* Subcategory Buttons (Gold/Diamond) */
 #subcategory-buttons {
   position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
+  bottom: 130px;
+  left: 0;
+  width: 100%;
+  justify-content: center;
+  transform: none;
+  z-index: 5;
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 12px;
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
 }
 
-/* Jewelry Image Options */
-#jewelry-options {
+#subcategory-buttons button {
+  background-color: #FFB800;
+  color: #000;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* Jewelry Options Scroll List */
+.options-group {
   position: fixed;
-  bottom: 140px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
+  bottom: 70px;
+  left: 0;
+  width: 100%;
+  transform: none;
   display: flex;
-  gap: 10px;
+  gap: 15px;
+  z-index: 2;
+  background: #5E0F8B;
+  backdrop-filter: blur(10px);
+  padding: 10px 20px;
+  border-radius: 16px;
   overflow-x: auto;
-  padding-bottom: 10px;
+  scrollbar-width: none;
 }
 
-#jewelry-options img {
+.options-group::-webkit-scrollbar {
+  display: none;
+}
+
+.options-group button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.options-group button img {
   width: 60px;
   height: 60px;
-  object-fit: contain;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.2s;
-  border: 2px solid transparent;
+  border-radius: 12px;
+  transition: transform 0.2s ease;
 }
 
-#jewelry-options img:hover {
-  transform: scale(1.1);
+.options-group button:hover img {
+  border: 2px solid #fff;
+  transform: scale(1.05);
 }
 
+/* UI Buttons (Snapshot, Location, Info) */
 .ui-buttons {
   position: fixed;
   top: 20px;
   right: 20px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 10;
+  gap: 15px;
+  z-index: 5;
 }
 
 .ui-buttons button, .ui-buttons a {
@@ -169,90 +201,46 @@ video, canvas {
 
 .info-content ul {
   padding-left: 20px;
-  margin-top: 10px;
-}
-
-.info-content li {
-  margin-bottom: 8px;
-}
-
-#info-modal h3 {
-  font-family: 'Cinzel', serif;
-  text-align: center;
+  line-height: 1.6;
 }
 
 .close-btn {
-  background: #333;
-  color: #fff;
+  background-color: #5E0F8B;
+  color: #ffffff;
   border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
+  padding: 10px 15px;
+  border-radius: 8px;
   cursor: pointer;
   margin-top: 20px;
-  display: block;
-  width: 100%;
 }
 
 /* Snapshot Modal */
 #snapshot-modal {
+  display: none;
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.9);
-  color: white;
-  padding: 20px;
+  background: #fff;
   border-radius: 12px;
-  z-index: 9999;
-  max-width: 90%;
-  width: 500px;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-
-#snapshot-modal h3 {
-  font-family: 'Cinzel', serif;
+  padding: 20px;
   text-align: center;
+  z-index: 9999;
 }
 
 #snapshot-preview {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-}
-
-.snapshot-buttons {
-  display: flex;
-  gap: 15px;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 10px;
+  margin-bottom: 10px;
 }
 
 .snapshot-buttons button {
-  background-color: #333;
-  color: #fff;
+  margin: 5px;
+  padding: 10px 16px;
   border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
+  border-radius: 8px;
+  background: #5E0F8B;
+  color: #ffffff;
   cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.snapshot-buttons button:hover {
-  background-color: #555;
-}
-
-/* Modal styles (dialog) */
-dialog {
-  padding: 0;
-  border: none;
-  background: none;
-}
-
-dialog::backdrop {
-  background-color: rgba(0, 0, 0, 0.7);
-}
-
-dialog[open] {
-  display: flex;
 }
