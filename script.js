@@ -18,6 +18,7 @@ let currentType = '';
 let smoothedFaceLandmarks = null;
 let smoothedHandLandmarks = null;
 let camera;
+let currentCameraFacingMode = 'user'; // 'user' for front camera, 'environment' for back
 
 // Utility function to load images with a Promise
 async function loadImage(src) {
@@ -32,57 +33,94 @@ async function loadImage(src) {
   });
 }
 
-// Change jewelry image
+// Updated to handle all jewelry types
 async function changeJewelry(type, src) {
   const img = await loadImage(src);
   if (!img) return;
 
-  earringImg = necklaceImg = braceletImg = ringImg = null;
+  // Clear all previous jewelry images
+  earringImg = null;
+  necklaceImg = null;
+  braceletImg = null;
+  ringImg = null;
 
-  if (type === 'earrings') earringImg = img;
-  if (type === 'necklaces') necklaceImg = img;
-  if (type === 'bracelet') braceletImg = img;
-  if (type === 'ring') ringImg = img;
+  if (type.includes('earrings')) {
+    earringImg = img;
+  } else if (type.includes('necklaces')) {
+    necklaceImg = img;
+  } else if (type.includes('bracelet')) {
+    braceletImg = img;
+  } else if (type.includes('ring')) {
+    ringImg = img;
+  }
 }
 
-// Handle category buttons
+// Function to handle the main category buttons
 function toggleCategory(category) {
+  jewelryOptions.style.display = 'none';
+  subcategoryButtons.style.display = 'none';
   currentType = category;
+
+  const isAccessoryCategory = ['bracelet', 'ring'].includes(category);
+  if (isAccessoryCategory) {
+    // Hide subcategory buttons and show product options directly
+    const jewelryCounts = {
+      bracelet: 7,
+      ring: 10,
+    };
+    const end = jewelryCounts[category] || 5;
+    insertJewelryOptions(category, 'jewelry-options', 1, end);
+    jewelryOptions.style.display = 'flex';
+    // Automatically switch to the back camera for bracelets and rings
+    startCamera('environment');
+  } else {
+    // Show subcategory buttons (Gold/Diamond) and a front camera
+    subcategoryButtons.style.display = 'flex';
+    startCamera('user');
+  }
+}
+
+// Function to handle the subcategory buttons (Gold/Diamond)
+function selectJewelryType(mainType, subType) {
+  currentType = `${subType}_${mainType}`;
   subcategoryButtons.style.display = 'none';
   jewelryOptions.style.display = 'flex';
+  
+  earringImg = null;
+  necklaceImg = null;
 
-  let count = 6; // default number of images
+  const jewelryCounts = {
+    gold_earrings: 16,
+    gold_necklaces: 19,
+    diamond_earrings: 9,
+    diamond_necklaces: 6,
+  };
 
-  if (category === 'earrings') count = 10;
-  if (category === 'necklaces') count = 8;
-  if (category === 'bracelet') count = 6;
-  if (category === 'ring') count = 6;
-
-  insertJewelryOptions(category, 'jewelry-options', 1, count);
+  const end = jewelryCounts[currentType] || 15;
+  insertJewelryOptions(currentType, 'jewelry-options', 1, end);
 }
 
-// Insert jewelry options into container
-function insertJewelryOptions(type, containerId, start, end) {
+// This function remains the same
+function insertJewelryOptions(type, containerId, startIndex, endIndex) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
-  for (let i = start; i <= end; i++) {
+  for (let i = startIndex; i <= endIndex; i++) {
     const filename = `${type}${i}.png`;
-    const path = `${type}/${filename}`;
-
     const btn = document.createElement('button');
     const img = document.createElement('img');
-    img.src = path;
-    img.alt = `${type} ${i}`;
+    img.src = `${type}/${filename}`;
+    img.alt = `${type.replace('_', ' ')} ${i}`;
     btn.appendChild(img);
-    btn.onclick = () => changeJewelry(type, path);
+    btn.onclick = () => changeJewelry(type, `${type}/${filename}`);
     container.appendChild(btn);
   }
 }
 
-// MediaPipe setup
+// MediaPipe Setup for Face and Hands
 const faceMesh = new FaceMesh({
   locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
 });
+
 faceMesh.setOptions({
   maxNumFaces: 1,
   refineLandmarks: true,
@@ -93,6 +131,7 @@ faceMesh.setOptions({
 const hands = new Hands({
   locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
 });
+
 hands.setOptions({
   maxNumHands: 2,
   modelComplexity: 1,
@@ -101,81 +140,154 @@ hands.setOptions({
 });
 
 hands.onResults((results) => {
-  smoothedHandLandmarks = results.multiHandLandmarks || null;
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        smoothedHandLandmarks = results.multiHandLandmarks;
+    } else {
+        smoothedHandLandmarks = null;
+    }
 });
 
 faceMesh.onResults((results) => {
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-  smoothedFaceLandmarks = results.multiFaceLandmarks ? results.multiFaceLandmarks[0] : null;
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    const newLandmarks = results.multiFaceLandmarks[0];
+    if (!smoothedFaceLandmarks) {
+      smoothedFaceLandmarks = newLandmarks;
+    } else {
+      const smoothingFactor = 0.2;
+      smoothedFaceLandmarks = smoothedFaceLandmarks.map((prev, i) => ({
+        x: prev.x * (1 - smoothingFactor) + newLandmarks[i].x * smoothingFactor,
+        y: prev.y * (1 - smoothingFactor) + newLandmarks[i].y * smoothingFactor,
+        z: prev.z * (1 - smoothingFactor) + newLandmarks[i].z * smoothingFactor,
+      }));
+    }
+  } else {
+    smoothedFaceLandmarks = null;
+  }
   drawJewelry(smoothedFaceLandmarks, smoothedHandLandmarks, canvasCtx);
 });
 
-// Start camera
-async function startCamera() {
-  if (camera) camera.stop();
-  camera = new Camera(videoElement, {
-    onFrame: async () => {
-      await faceMesh.send({ image: videoElement });
-      await hands.send({ image: videoElement });
-    },
-    width: 1280,
-    height: 720,
-  });
-  camera.start();
+// New camera function to start the video stream with a specific facing mode
+async function startCamera(facingMode) {
+    if (camera) {
+        camera.stop();
+    }
+
+    camera = new Camera(videoElement, {
+        onFrame: async () => {
+            await faceMesh.send({ image: videoElement });
+            await hands.send({ image: videoElement });
+        },
+        width: 1280,
+        height: 720,
+        facingMode: facingMode
+    });
+    camera.start();
 }
 
-document.addEventListener('DOMContentLoaded', () => startCamera());
+document.addEventListener('DOMContentLoaded', (event) => {
+    // Start with the front camera by default
+    startCamera('user');
+});
 
 videoElement.addEventListener('loadedmetadata', () => {
   canvasElement.width = videoElement.videoWidth;
   canvasElement.height = videoElement.videoHeight;
 });
 
-// Draw jewelry
+// Drawing Functions - UPDATED
 function drawJewelry(faceLandmarks, handLandmarks, ctx) {
   const earringScale = 0.07;
   const necklaceScale = 0.18;
   const braceletScale = 0.15;
   const ringScale = 0.05;
+  // Adjust this value to change the default angle of the bracelet.
+  // The value is in radians. For example, Math.PI / 2 is 90 degrees.
+  const angleOffset = Math.PI / 2; 
 
   if (faceLandmarks) {
-    const leftEar = faceLandmarks[132];
-    const rightEar = faceLandmarks[361];
-    const neck = faceLandmarks[152];
+    const leftEarLandmark = faceLandmarks[132];
+    const rightEarLandmark = faceLandmarks[361];
+    const neckLandmark = faceLandmarks[152];
+    const foreheadLandmark = faceLandmarks[10];
+
+    const leftEarPos = {
+      x: leftEarLandmark.x * canvasElement.width - 6,
+      y: leftEarLandmark.y * canvasElement.height - 16,
+    };
+    const rightEarPos = {
+      x: rightEarLandmark.x * canvasElement.width + 6,
+      y: rightEarLandmark.y * canvasElement.height - 16,
+    };
+    const neckPos = {
+      x: neckLandmark.x * canvasElement.width - 8,
+      y: neckLandmark.y * canvasElement.height + 10,
+    };
 
     if (earringImg) {
-      const w = earringImg.width * earringScale;
-      const h = earringImg.height * earringScale;
-      ctx.drawImage(earringImg, leftEar.x * canvasElement.width - w / 2, leftEar.y * canvasElement.height, w, h);
-      ctx.drawImage(earringImg, rightEar.x * canvasElement.width - w / 2, rightEar.y * canvasElement.height, w, h);
+      const width = earringImg.width * earringScale;
+      const height = earringImg.height * earringScale;
+      ctx.drawImage(earringImg, leftEarPos.x - width / 2, leftEarPos.y, width, height);
+      ctx.drawImage(earringImg, rightEarPos.x - width / 2, rightEarPos.y, width, height);
     }
     if (necklaceImg) {
-      const w = necklaceImg.width * necklaceScale;
-      const h = necklaceImg.height * necklaceScale;
-      ctx.drawImage(necklaceImg, neck.x * canvasElement.width - w / 2, neck.y * canvasElement.height, w, h);
+      const width = necklaceImg.width * necklaceScale;
+      const height = necklaceImg.height * necklaceScale;
+      ctx.drawImage(necklaceImg, neckPos.x - width / 2, neckPos.y, width, height);
     }
   }
 
   if (handLandmarks) {
     handLandmarks.forEach(hand => {
-      const wrist = hand[0];
-      const ringFinger = hand[16];
+      // Use wrist landmark and middle finger knuckle to calculate a stable angle
+      const wristLandmark = hand[0];
+      const middleFingerKnuckleLandmark = hand[9];
+
+      const wristPos = {
+        x: wristLandmark.x * canvasElement.width,
+        y: wristLandmark.y * canvasElement.height,
+      };
+      
+      const middleFingerKnucklePos = {
+        x: middleFingerKnuckleLandmark.x * canvasElement.width,
+        y: middleFingerKnuckleLandmark.y * canvasElement.height,
+      };
+
+      const ringFingerPos = {
+        x: hand[14].x * canvasElement.width,
+        y: hand[14].y * canvasElement.height,
+      };
+
+      // Calculate the angle of the hand in radians
+      const angle = Math.atan2(middleFingerKnucklePos.y - wristPos.y, middleFingerKnucklePos.x - wristPos.x);
+
       if (braceletImg) {
-        const w = braceletImg.width * braceletScale;
-        const h = braceletImg.height * braceletScale;
-        ctx.drawImage(braceletImg, wrist.x * canvasElement.width - w / 2, wrist.y * canvasElement.height - h / 2, w, h);
+        const width = braceletImg.width * braceletScale;
+        const height = braceletImg.height * braceletScale;
+        
+        ctx.save();
+        ctx.translate(wristPos.x, wristPos.y);
+        ctx.rotate(angle + angleOffset); // Apply the rotation with the offset
+        ctx.drawImage(braceletImg, -width / 2, -height / 2, width, height);
+        ctx.restore();
       }
+      
       if (ringImg) {
-        const w = ringImg.width * ringScale;
-        const h = ringImg.height * ringScale;
-        ctx.drawImage(ringImg, ringFinger.x * canvasElement.width - w / 2, ringFinger.y * canvasElement.height - h / 2, w, h);
+        const width = ringImg.width * ringScale;
+        const height = ringImg.height * ringScale;
+        ctx.drawImage(ringImg, ringFingerPos.x - width / 2, ringFingerPos.y - height / 2, width, height);
       }
     });
   }
 }
 
-// Snapshot
+// Fixed Snapshot Function
 function takeSnapshot() {
+  if (!smoothedFaceLandmarks && !smoothedHandLandmarks) {
+    alert("Face or hand not detected. Please try again.");
+    return;
+  }
+
   const snapshotCanvas = document.createElement('canvas');
   const ctx = snapshotCanvas.getContext('2d');
   snapshotCanvas.width = videoElement.videoWidth;
@@ -187,30 +299,38 @@ function takeSnapshot() {
   snapshotModal.showModal();
 }
 
+// Fixed Save Function
 function saveSnapshot() {
   const link = document.createElement('a');
   link.href = lastSnapshotDataURL;
   link.download = `jewelry-tryon-${Date.now()}.png`;
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
 }
 
-function shareSnapshot() {
+// Fixed Share Function with async/await
+async function shareSnapshot() {
+  // Check if the Web Share API is supported by the browser
   if (navigator.share) {
-    fetch(lastSnapshotDataURL)
-      .then(res => res.blob())
-      .then(blob => {
-        const file = new File([blob], 'jewelry-tryon.png', { type: 'image/png' });
-        navigator.share({
-          title: 'Jewelry Try-On',
-          text: 'Check out my look!',
-          files: [file]
-        });
-      })
-      .catch(err => console.error('Share failed', err));
+    try {
+      const response = await fetch(lastSnapshotDataURL);
+      const blob = await response.blob();
+      const file = new File([blob], 'jewelry-tryon.png', { type: 'image/png' });
+
+      // Share the file
+      await navigator.share({
+        title: 'Jewelry Try-On',
+        text: 'Check out my look!',
+        files: [file],
+      });
+      console.log('Shared successfully');
+    } catch (error) {
+      console.error('Error sharing:', error);
+      alert('Error sharing. Please try again.');
+    }
   } else {
-    navigator.clipboard.writeText(lastSnapshotDataURL)
-      .then(() => alert("Image link copied! Paste it to share."))
-      .catch(() => alert("Sharing not supported in this browser."));
+    alert('Sharing not supported on this browser.');
   }
 }
 
@@ -219,5 +339,9 @@ function closeSnapshotModal() {
 }
 
 function toggleInfoModal() {
-  infoModal.open ? infoModal.close() : infoModal.showModal();
+  if (infoModal.open) {
+    infoModal.close();
+  } else {
+    infoModal.showModal();
+  }
 }
